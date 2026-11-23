@@ -7,7 +7,7 @@ Laravel 12 + MySQL application for the BookLeaf four-day full-stack assignment. 
 - MySQL 8 (InnoDB, utf8mb4)
 - Blade responsive UI
 - AI endpoint configured using `AI_CHAT_API_URL`; requests run server-side only
-- 2.5-second polling on ticket detail pages for near-real-time updates
+- Pusher Channels WebSocket private ticket events (requires configured server credentials)
 
 ## Setup
 1. Install PHP 8.2+, Composer, MySQL 8 and PHP extensions `pdo_mysql`, `mbstring`, `openssl`, `fileinfo`, `curl`, `tokenizer`, `xml`.
@@ -43,7 +43,7 @@ The browser-facing web workflow uses CSRF-protected routes in `routes/web.php`. 
 
 ## Notes / limitations
 - Attachment selection and server-side private storage are implemented; file download UI and antivirus scanning are not included.
-- Ticket updates use 2.5-second polling. A production deployment can replace this with Laravel Reverb/Echo.
+- Ticket updates use Pusher Channels private WebSockets, with an authenticated refresh request only after an event or reconnection. Ensure Pusher credentials are configured.
 - Add Laravel Sanctum before exposing the API to external bearer-token clients.
 - Configure HTTPS, mail delivery, rate limiting, backups, monitoring, queue workers and audit logging before production use.
 - The Figma community file was not accessible to the build environment, so the interface uses a clean library-inspired editorial dashboard with BookLeaf green styling rather than claiming pixel-perfect reproduction.
@@ -95,7 +95,7 @@ The command reports whether the SMTP server accepted the message. Check the inbo
 - **Technical approach / trade-offs (one page):** [APPROACH.md](APPROACH.md)
 - **Original sample data:** `database/data/bookleaf_sample_data.json` (10 authors, 18 books)
 
-**Important architecture disclosure:** The frontend is responsive Laravel Blade plus JavaScript, rather than the React / Next.js / Vue frontend recommended in the assignment's technology guidelines. Ticket updates use near-real-time polling, an expressly allowed mechanism under the real-time guidelines. The live site should be independently tested using both roles before a hiring evaluation.
+**Important architecture disclosure:** The frontend is responsive Laravel Blade plus JavaScript, rather than the React / Next.js / Vue frontend recommended in the assignment's technology guidelines. Ticket updates use Pusher Channels private WebSocket notifications when configured. The live site should be independently tested using both roles before a hiring evaluation.
 
 ### REST endpoints (JSON; Sanctum authenticated)
 
@@ -114,4 +114,14 @@ Admin ticket management uses `PATCH /admin/tickets/{ticket}` for status/category
 
 ### AI configuration and production limitations
 
-AI requests are made server-side. Configure `AI_CHAT_API_URL` and, if required, `AI_CHAT_API_KEY` in the environment. The default endpoint is provider-specific and may not return structured content compatible with the parser; this case falls back to a local heuristic. The implementation sends compact policy context and at most six recent conversation messages. It does not guarantee live model-driven classification in the absence of a working provider. Laravel Blade instead of a standalone JavaScript app, polling rather than WebSockets, and the lack of a file download interface are acknowledged trade-offs, not silently omitted features. For real users, rotate demo credentials and configure HTTPS, email and AI settings.
+AI requests are made server-side. Configure `AI_CHAT_API_URL` and, if required, `AI_CHAT_API_KEY` in the environment. The default endpoint is provider-specific and may not return structured content compatible with the parser; this case falls back to a local heuristic. The implementation sends compact policy context and at most six recent conversation messages. It does not guarantee live model-driven classification in the absence of a working provider. Laravel Blade instead of a standalone JavaScript app, Pusher Channels WebSockets with private subscription authorization, and the lack of a file download interface are acknowledged trade-offs, not silently omitted features. For real users, rotate demo credentials and configure HTTPS, email and AI settings.
+
+## Pusher Channels real-time setup
+
+1. Install Composer dependencies: `composer install` (or `composer update pusher/pusher-php-server --with-all-dependencies` if upgrading an older deployment). The repository intentionally does not contain a `composer.lock` file.
+2. Set `BROADCAST_CONNECTION=pusher` and supply your **existing** Pusher Channels credentials via server-side `.env`: `PUSHER_APP_ID`, `PUSHER_APP_KEY`, `PUSHER_APP_SECRET`, `PUSHER_APP_CLUSTER`. Do not commit credentials. **Only the app key and cluster are visible to browsers; secret stays server-side.**
+3. Run `php artisan config:clear` then `php artisan config:cache`. Confirm HTTPS and outgoing access to Pusher.
+4. Open the same ticket in author and admin sessions; send a reply and confirm the other session receives a `ticket.updated` event without reload. Check browser console/Network WebSocket and `POST /broadcasting/auth` if needed.
+5. Events use a private Pusher channel `private-tickets.{id}`, authorized for ticket owner and admins. The event carries only a ticket ID; the browser loads messages through the existing authenticated `/tickets/{ticket}/refresh` route. The client does **not** run a 2.5-second polling loop.
+
+**Deployment note:** These are GitHub source changes, not a verified copy of the live server's latest private files. Deploy and confirm your existing Pusher credentials before claiming the live site is synchronized.
