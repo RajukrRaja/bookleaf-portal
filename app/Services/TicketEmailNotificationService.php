@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Mail\TicketActivityMail;
+use App\Events\TicketUpdated;
 use App\Models\Ticket;
 use App\Models\User;
 use Illuminate\Support\Facades\Log;
@@ -18,6 +19,15 @@ class TicketEmailNotificationService
     public function notifyBoth(Ticket $ticket, string $activity, array $extra = []): void
     {
         $ticket->loadMissing(['author', 'book', 'assignee']);
+
+        // Broadcast persisted changes immediately, independently of SMTP delivery.
+        try {
+            if (config('broadcasting.default') === 'pusher' && config('broadcasting.connections.pusher.key')) {
+                event(new TicketUpdated($ticket));
+            }
+        } catch (Throwable $e) {
+            Log::warning('BookLeaf Pusher event failed.', ['ticket_id' => $ticket->id, 'exception' => $e::class]);
+        }
 
         $details = array_merge([
             'ticket_number' => $ticket->ticket_number,
