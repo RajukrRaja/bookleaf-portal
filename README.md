@@ -87,3 +87,31 @@ php artisan bookleaf:mail-test rajukumar.191813@gmail.com
 ```
 
 The command reports whether the SMTP server accepted the message. Check the inbox and spam folder, then create or reply to a ticket to test the notification workflow. Web actions show a warning if sending fails. Details are recorded in storage/logs/laravel.log.
+
+## Assignment submission (23 November 2026)
+
+- **Live demo:** https://bookleaf.freedev.app/login
+- **Source code:** https://github.com/RajukrRaja/bookleaf-portal
+- **Technical approach / trade-offs (one page):** [APPROACH.md](APPROACH.md)
+- **Original sample data:** `database/data/bookleaf_sample_data.json` (10 authors, 18 books)
+
+**Important architecture disclosure:** The frontend is responsive Laravel Blade plus JavaScript, rather than the React / Next.js / Vue frontend recommended in the assignment's technology guidelines. Ticket updates use near-real-time polling, an expressly allowed mechanism under the real-time guidelines. The live site should be independently tested using both roles before a hiring evaluation.
+
+### REST endpoints (JSON; Sanctum authenticated)
+
+| Method | Endpoint | Access | Description |
+| --- | --- | --- | --- |
+| GET | `/api/tickets` | Admin / author | Paginated tickets. Authors see only their tickets. |
+| POST | `/api/tickets` | Author | Create a ticket with optional owned `book_id`, required `subject` (up to 180 chars) and `description` (10–10,000 chars). Server classifies and drafts with AI/fallback. |
+| POST | `/api/tickets/{ticket}/reply` | Admin / ticket owner | Send a message. JSON field: `message` (required, max 10,000 chars). |
+| GET | `/api/tickets/{ticket}/refresh` | Admin / ticket owner | Retrieve current status, messages and update timestamp. |
+
+Unauthenticated requests are rejected by the Sanctum guard. Validation errors use Laravel's standard HTTP 422 JSON response; forbidden role or ownership access uses HTTP 403. Successful POST requests return HTTP 201 JSON responses. The Blade UI uses authenticated CSRF-protected web routes for admin ticket management. `composer.json` includes `laravel/sanctum`; follow the installed Laravel/Sanctum configuration when deploying API clients.
+
+### Admin web routes
+
+Admin ticket management uses `PATCH /admin/tickets/{ticket}` for status/category/priority edits, `POST /admin/tickets/{ticket}/draft` for draft regeneration, `POST /admin/tickets/{ticket}/send` for reviewed response sending, `POST /admin/tickets/{ticket}/note` for private notes and `POST /admin/tickets/{ticket}/assign` for self-assignment. These routes require an authenticated admin session and CSRF protection.
+
+### AI configuration and production limitations
+
+AI requests are made server-side. Configure `AI_CHAT_API_URL` and, if required, `AI_CHAT_API_KEY` in the environment. The default endpoint is provider-specific and may not return structured content compatible with the parser; this case falls back to a local heuristic. The implementation sends compact policy context and at most six recent conversation messages. It does not guarantee live model-driven classification in the absence of a working provider. Laravel Blade instead of a standalone JavaScript app, polling rather than WebSockets, and the lack of a file download interface are acknowledged trade-offs, not silently omitted features. For real users, rotate demo credentials and configure HTTPS, email and AI settings.
