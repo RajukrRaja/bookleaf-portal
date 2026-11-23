@@ -27,7 +27,7 @@
                     <b>{{ $ticket->author->name }}</b>
                     <p>{{ $ticket->description }}</p>
                 </div>
-                <div class="conversation" data-refresh-url="{{ route('tickets.refresh', $ticket) }}">
+                <div class="conversation" data-refresh-url="{{ route('tickets.refresh', $ticket) }}" data-ticket-id="{{ $ticket->id }}" data-pusher-key="{{ config('broadcasting.connections.pusher.key') }}" data-pusher-cluster="{{ config('broadcasting.connections.pusher.options.cluster') }}" data-csrf-token="{{ csrf_token() }}">
                     <h3>Conversation</h3>
                     @forelse($ticket->messages as $message)
                         <div data-message-id="{{ $message->id }}" class="message-bubble {{ $message->is_admin?'admin-bubble':'author-bubble' }}">
@@ -162,6 +162,7 @@
     </div>
 @endsection
 @push('scripts')
+    <script src="https://js.pusher.com/8.4.0/pusher.min.js" defer></script>
     <script src="{{ asset('ticket-conversation.js') }}" defer>
     </script>
 @endpush
